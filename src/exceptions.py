@@ -2,6 +2,7 @@ from abc import ABC
 
 MESSAGE_BOOKING_FAILED_NO_CREDIT = "No credit available"
 MESSAGE_BOOKING_FAILED_UNKNOWN = "Unknown error"
+MESSAGE_ALREADY_BOOKED = "Class already booked. Nothing to do"
 MESSAGE_BOX_IS_CLOSED = "Box is closed"
 MESSAGE_TOO_SOON_TO_BOOK = "Too soon to book the class"
 
@@ -27,4 +28,8 @@ class NoBookingGoal(Exception):
 
 
 class BoxClosed(Exception):
+    pass
+
+
+class AlreadyBooked(Exception):
     pass

@@ -4,28 +4,32 @@ Python script to automate your session bookings in [aimharder.com](http://aimhar
 
 ## Usage
 
-Having docker installed you only need to do the following command:
+Having docker installed, build the image from this repo and run it:
 
 ```bash
-docker run -e email=your.email@mail.com -e password=1234 -e booking-goals='{"0":{"time":"1815","name":"Provenza"}}' -e box-name=lahuellacrossfit -e box-id=3984 -e days-in-advance=3 pablobuenaposada/fitbot
-````
+docker build -t fitbot .
+docker run -e email=your.email@mail.com -e password=1234 -e booking-goals='{"monday":[{"time":"1815","name":"Provenza"}]}' -e box-name=lahuellacrossfit -e box-id=3984 fitbot
+```
+
+> **Note:** the published `pablobuenaposada/fitbot` image still uses the old `booking-goals` format (one class per day, without lists), so build your own image to use the format described here.
+
 Explanation about the fields:
 
 `email`: self-explanatory
 
 `password`: self-explanatory
 
-`booking-goals`: expects a json where as keys you would use the day of the week as integer from 0 to 6 (Monday to Friday) and the value should be the time (HHMM) of the class and the name of the class or part of it.
+`booking-goals`: expects a json where as keys you would use the day of the week in lowercase English (`monday`, `tuesday`, `wednesday`, `thursday`, `friday`, `saturday`, `sunday`) and the value should be a list of classes to book that day, each one with the time (HHMM) of the class and the name of the class or part of it. The value is always a list, even for a single class. The name is case sensitive: `Open Box` matches `Open Box A.M` but `open box` does not.
 Unfortunately this structure needs to be crazy escaped, but here's an example:
 
-Mondays at 18:15 class name should contain ARIBAU
+Mondays at 18:15 class name should contain ARIBAU and at 19:15 class name should contain WOD
 Wednesdays at 18:15 class name should contain ARIBAU
 ```python
-{"0": {"time": "1815", "name": "ARIBAU"}, "2": {"time": "1815", "name": "ARIBAU"}}
+{"monday": [{"time": "1815", "name": "ARIBAU"}, {"time": "1915", "name": "WOD"}], "wednesday": [{"time": "1815", "name": "ARIBAU"}]}
 ```
 which should be sent in this form:
 ```sh
-'{"0":{"time":"1815","name":"ARIBAU"},"2":{"time":"1815","name":"ARIBAU"}}'
+'{"monday":[{"time":"1815","name":"ARIBAU"},{"time":"1915","name":"WOD"}],"wednesday":[{"time":"1815","name":"ARIBAU"}]}'
 ```
 
 `box-name`: this is the sub-domain you will find in the url when accessing the booking list from a browser, something like _https://**lahuellacrossfit**.aimharder.com/schedule_
@@ -34,7 +38,12 @@ which should be sent in this form:
 
 <img src="https://raw.github.com/pablobuenaposada/fitbot/master/inspect.png" data-canonical-src="https://raw.github.com/pablobuenaposada/fitbot/master/inspect.png" height="300" />
 
-`days-in-advance`: this is how many days in advance the script should try to book classes from, so for example, if this script is being run on a Monday and this field is set to 3 it's going to try book Thursday class from `booking_goals`
+Each run books the classes of the current week (Monday to Sunday), so run it on Monday to book the whole week. Days of the week that have already passed will fail to book and are just logged.
+
+Example: run it every Monday to book Open Box at 17:00 and WOD at 18:00 on Mondays, Tuesdays, Thursdays and Fridays in a single run:
+```sh
+booking-goals={"monday":[{"time":"1700","name":"Open Box"},{"time":"1800","name":"WOD"}],"tuesday":[{"time":"1700","name":"Open Box"},{"time":"1800","name":"WOD"}],"thursday":[{"time":"1700","name":"Open Box"},{"time":"1800","name":"WOD"}],"friday":[{"time":"1700","name":"Open Box"},{"time":"1800","name":"WOD"}]}
+```
 
 `family-id`: Optional. This is the id for the person who wants to book a class in case the account has more than one member. 
 The value for this parameter can be found by inspecting the requests with the browser, as with the field `box-id`.
@@ -59,7 +68,8 @@ You can use env files for configuration and credentials instead of passing them 
 
 4. **Run:**
    ```bash
-   docker run --env-file .env --env-file .env.secrets pablobuenaposada/fitbot
+   docker build -t fitbot .
+   docker run --env-file .env --env-file .env.secrets fitbot
    ```
 
 > **Security Note:** `.env.secrets` is gitignored to prevent accidentally committing credentials. Never commit this file.

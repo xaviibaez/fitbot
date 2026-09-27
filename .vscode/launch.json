@@ -1,0 +1,16 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug tests",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": ["src/tests", "-k", "TestGetBookingGoalTime"],
+            "python": "${workspaceFolder}/.venv/Scripts/python.exe",
+            "cwd": "${workspaceFolder}",
+            "env": { "PYTHONPATH": "${workspaceFolder}/src" },
+            "justMyCode": true
+        }
+    ]
+}
