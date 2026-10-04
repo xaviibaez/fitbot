@@ -6,7 +6,7 @@ format: venv
 	uv run ruff check --fix
 
 run: venv
-	@uv run python src/main.py --email='$(email)' --password='$(password)' --booking-goals='$(booking-goals)' --box-name='$(box-name)' --box-id='$(box-id)' --proxy='$(proxy)'
+	@uv run python src/main.py --email='$(email)' --password='$(password)' --booking-goals='$(booking-goals)' --box-name='$(box-name)' --box-id='$(box-id)' $(if $(days-in-advance),--days-in-advance='$(days-in-advance)') --proxy='$(proxy)' --timezone='$(timezone)'
 
 tests: venv
 	uv run pytest src/tests

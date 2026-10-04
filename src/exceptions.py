@@ -33,3 +33,7 @@ class BoxClosed(Exception):
 
 class AlreadyBooked(Exception):
     pass
+
+
+class InvalidBookingGoals(Exception):
+    pass

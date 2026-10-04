@@ -10,7 +10,7 @@ Having docker installed you only need to do the following command:
 docker run -e email=your.email@mail.com -e password=1234 -e booking-goals='{"monday":[{"time":"1815","name":"Provenza"}]}' -e box-name=lahuellacrossfit -e box-id=3984 xaviibaez/fitbot
 ```
 
-> **Note:** use the `xaviibaez/fitbot` image. The original `pablobuenaposada/fitbot` image still uses the old `booking-goals` format (numeric days, one class per day and `days-in-advance`).
+> **Note:** use the `xaviibaez/fitbot` image. The original `pablobuenaposada/fitbot` image only understands the old format (numeric days, one class per day and `days-in-advance`), which this image still supports, see [Old format](#old-format).
 
 Explanation about the fields:
 
@@ -19,6 +19,7 @@ Explanation about the fields:
 `password`: self-explanatory
 
 `booking-goals`: expects a json where as keys you would use the day of the week in lowercase English (`monday`, `tuesday`, `wednesday`, `thursday`, `friday`, `saturday`, `sunday`) and the value should be a list of classes to book that day, each one with the time (HHMM) of the class and the name of the class or part of it. The value is always a list, even for a single class. The name is case sensitive: `Open Box` matches `Open Box A.M` but `open box` does not.
+The json is checked before logging in: an unknown day (days are lowercase only, `Monday` is not valid), a time that is not HHMM or an empty name stops the script with an error and nothing is booked.
 Unfortunately this structure needs to be crazy escaped, but here's an example:
 
 Mondays at 18:15 class name should contain ARIBAU and at 19:15 class name should contain WOD
@@ -48,6 +49,22 @@ booking-goals={"monday":[{"time":"1700","name":"Open Box"},{"time":"1800","name"
 The value for this parameter can be found by inspecting the requests with the browser, as with the field `box-id`.
 
 `proxy`: Optional. If you want to use a proxy, you can set it with the format `socks5://ip:port`.
+
+`timezone`: Optional, `UTC` by default. Timezone used to know which day is today, for example `Europe/Madrid`. Set it to your gym's timezone, otherwise a run close to midnight can take the previous or next day (and week) as today.
+
+## Old format
+
+The format of the original `pablobuenaposada/fitbot` image keeps working exactly as before when `booking-goals` uses the old format and `days-in-advance` is set:
+
+- days as numbers from `0` (Monday) to `6` (Sunday)
+- one class per day as an object instead of a list
+- `days-in-advance`: only the day that is `days-in-advance` days from today is booked
+
+```bash
+docker run -e email=your.email@mail.com -e password=1234 -e booking-goals='{"0":{"time":"1815","name":"Provenza"}}' -e box-name=lahuellacrossfit -e box-id=3984 -e days-in-advance=3 xaviibaez/fitbot
+```
+
+In any other case (any day written as a name, any list of classes, or no `days-in-advance`) the new behaviour is used: the whole current week is booked and `days-in-advance` is ignored.
 
 ## Using env files
 
