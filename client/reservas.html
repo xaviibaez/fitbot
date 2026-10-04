@@ -47,6 +47,8 @@
   .slot.booked.cancel::after { content: "✕"; }
   .slot.booked.cancel .name { text-decoration: line-through; }
   .slot:disabled { opacity: .5; cursor: not-allowed; }
+  #google a { color: var(--accent); font-weight: 600; }
+  #google.synced { color: var(--ok); }
 </style>
 </head>
 <body>
@@ -57,6 +59,7 @@
       <button class="ghost" data-weeks="0">Esta semana</button>
       <button class="ghost" data-weeks="1">Semana que viene</button>
     </div>
+    <span id="google" class="muted"></span>
     <button id="book">Reservar (0)</button>
   </div>
   <p id="title" class="muted">Cargando…</p>
@@ -111,6 +114,7 @@ function render(data) {
     button.classList.toggle("active", Number(button.dataset.weeks) === data.weeks_ahead);
   }
   const {week} = data;
+  showGoogle(data.google);
   $("title").hidden = true;  // only used for "Cargando…" and errors
   const todayIso = new Date().toLocaleDateString("sv-SE", {timeZone: "Europe/Madrid"});
   const hueOf = hues(week);
@@ -144,6 +148,22 @@ function render(data) {
     return column;
   }));
   updateCount();
+}
+
+function showGoogle(google) {
+  const element = $("google");
+  element.className = "muted";
+  if (!google.connected) {
+    element.innerHTML = google.configured ? '<a href="/google/connect">Conectar Google Calendar</a>'
+      : "Google Calendar sin configurar (mira el README)";
+  } else if (google.error) {
+    element.className = "error";
+    element.textContent = `Google Calendar: ${google.error}`;
+  } else {
+    element.className = "synced";
+    const changes = [google.created && `+${google.created}`, google.deleted && `−${google.deleted}`].filter(Boolean);
+    element.textContent = `📅 Google Calendar al día${changes.length ? ` (${changes.join(" ")})` : ""}`;
+  }
 }
 
 function placesText(slot, c) {

@@ -9,6 +9,7 @@ virtualenv (it needs `requests`). Listens on 127.0.0.1 only.
 
 import json
 import os
+import secrets
 import shutil
 import subprocess
 import sys
@@ -17,7 +18,10 @@ from datetime import date, datetime, timedelta
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 from zoneinfo import ZoneInfo
+
+import gcal
 
 HERE = Path(__file__).parent
 SERVER = HERE.parent / "server"
@@ -151,8 +155,10 @@ def week(weeks_ahead=0):
         raise PermissionError("Haz login primero")
     now = today()
     days = []
+    location = ""
     for day in week_days(now + timedelta(weeks=int(weeks_ahead))):
         classes = session["client"].get_classes(day) or []
+        location = location or next((c.get("boxDir", "") for c in classes), "")
         days.append(
             {
                 "date": day.isoformat(),
@@ -173,7 +179,21 @@ def week(weeks_ahead=0):
                 ],
             }
         )
-    return {"week": days, "weeks_ahead": int(weeks_ahead)}
+    return {
+        "week": days,
+        "weeks_ahead": int(weeks_ahead),
+        "google": sync_google(days, location),
+    }
+
+
+def sync_google(days, location):
+    """Mirror the booked classes of the week in Google Calendar, if connected"""
+    if not gcal.is_connected():
+        return {"connected": False, "configured": gcal.is_configured()}
+    try:
+        return {"connected": True, **gcal.sync_week(days, location)}
+    except Exception as e:  # noqa: BLE001 - the week still loads, error on the page
+        return {"connected": True, "error": str(e) or type(e).__name__}
 
 
 def run_bot(selected):
@@ -233,9 +253,29 @@ PAGES = {
 }
 
 
+# ponytail: one user on localhost, a single pending Google sign-in at a time
+oauth_state = {}
+
+
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        if self.path in PAGES:
+        url = urlsplit(self.path)
+        if url.path == "/google/connect":
+            if not gcal.is_configured():
+                return self.send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {"error": "Falta client/google-credentials.json (mira el README)"},
+                )
+            oauth_state["state"] = secrets.token_urlsafe()
+            self.redirect(gcal.auth_url(oauth_state["state"]))
+        elif url.path == "/oauth2callback":
+            query = parse_qs(url.query)
+            if query.get("state", [""])[0] != oauth_state.pop("state", None):
+                return self.send_json(HTTPStatus.BAD_REQUEST, {"error": "Bad state"})
+            if "code" in query:  # missing when the user cancels on Google
+                gcal.finish_auth(query["code"][0])
+            self.redirect("/reservas")
+        elif self.path in PAGES:
             file, content_type = PAGES[self.path]
             self.send(HTTPStatus.OK, (HERE / file).read_bytes(), content_type)
         elif self.path == "/api/defaults":
@@ -259,6 +299,11 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(
                 HTTPStatus.BAD_REQUEST, {"error": str(e) or type(e).__name__}
             )
+
+    def redirect(self, location):
+        self.send_response(HTTPStatus.FOUND)
+        self.send_header("Location", location)
+        self.end_headers()
 
     def send_json(self, status, data):
         self.send(status, json.dumps(data).encode(), "application/json")

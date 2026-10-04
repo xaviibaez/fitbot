@@ -112,3 +112,39 @@ def test_cancel_reports_each_class_and_keeps_going(monkeypatch):
         (False, "Could not cancel the booking"),
     ]
     assert cancelled == ["1"]
+
+
+def test_week_syncs_google_calendar_when_connected(monkeypatch):
+    booked_class = {
+        "timeid": "1700_60",
+        "time": "17:00 - 18:00",
+        "className": "WOD",
+        "bookState": 1,
+        "idres": "55",
+        "enabled": 1,
+        "boxDir": "Carrer de Raimon Casellas, 1, Sabadell",
+    }
+    monkeypatch.setitem(
+        app.session, "client", SimpleNamespace(get_classes=lambda day: [booked_class])
+    )
+    monkeypatch.setattr(app, "today", lambda: datetime.date(2026, 10, 5))
+    synced = {}
+    monkeypatch.setattr(app.gcal, "is_connected", lambda: True)
+    monkeypatch.setattr(
+        app.gcal,
+        "sync_week",
+        lambda week, location: (
+            synced.update(week=week, location=location) or {"created": 7, "deleted": 0}
+        ),
+    )
+    data = app.week()
+    assert data["google"] == {"connected": True, "created": 7, "deleted": 0}
+    assert synced["location"] == "Carrer de Raimon Casellas, 1, Sabadell"
+    assert synced["week"][0]["classes"][0]["booking_id"] == "55"
+
+    def broken(week, location):
+        raise ConnectionError("Google is down")
+
+    monkeypatch.setattr(app.gcal, "sync_week", broken)
+    # the week still loads, the error is reported
+    assert app.week()["google"] == {"connected": True, "error": "Google is down"}

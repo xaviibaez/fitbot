@@ -1,1 +1,4 @@
+# Google OAuth client and the user's tokens: secrets
+google-credentials.json
+google-token.json
 __pycache__

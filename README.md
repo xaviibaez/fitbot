@@ -110,6 +110,19 @@ Your password is only kept in memory while the page server runs, and it is passe
 
 Click a booked (green) class to mark it to cancel (it turns red) and press **Aplicar**. Cancelling is done straight away from the page, without the container. Cancelling close to the class can cost you the credit, depending on your box rules.
 
+### Google Calendar
+
+When connected, the page keeps your primary Google Calendar in sync with the classes booked in aimharder for the week on screen: it creates an event for each booked class and deletes it when the class is cancelled (from the page or from the aimharder app, the next time the page loads the week). Only events created by FitBot are touched.
+
+One-time setup:
+
+1. In [Google Cloud Console](https://console.cloud.google.com) create a project and enable the **Google Calendar API** (APIs & Services → Library).
+2. Configure the OAuth consent screen: user type **External**, add the scope `.../auth/calendar.events` and add your Gmail as **test user**.
+3. Credentials → Create credentials → OAuth client ID → type **Desktop app**. Download the JSON and save it as `client/google-credentials.json` (it is gitignored).
+4. Open the reservations page and click **Conectar Google Calendar**. Google warns that the app is not verified: click continue.
+
+While the app stays in "Testing" in Google Cloud, Google expires the connection after about 7 days and you will have to click **Conectar Google Calendar** again. The tokens are saved in `client/google-token.json` (gitignored).
+
 ## 🚨 Proxy note 🚨
 It appears that AimHarder has started blocking connections by returning a 403 error based on the IP address location. If you are running this script from outside Spain, you may encounter these errors, which is why the proxy argument has been added.
 
