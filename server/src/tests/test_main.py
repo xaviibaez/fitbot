@@ -411,3 +411,30 @@ class TestMain:
                 days_in_advance=days_in_advance,
             )
         assert sorted(self.booked(m_post)) == [("20220228", 1), ("20220303", 1)]
+
+    @freeze_time("2022-03-06 09:00")  # Sunday
+    def test_main_books_next_week_with_weeks_ahead(self):
+        with (
+            patch("requests.Session.post") as m_post,
+            patch("requests.Session.get") as m_get,
+        ):
+            m_post.side_effect = self.mock_request_post
+            m_get.return_value.json.return_value = {
+                "bookings": [
+                    {
+                        "id": 1,
+                        "timeid": "1700_60",
+                        "className": "Open Box A.M",
+                        "bookState": None,
+                    }
+                ]
+            }
+            main(
+                email="foo",
+                password="bar",
+                booking_goals={"monday": [GOAL], "thursday": [GOAL]},
+                box_name="foo",
+                box_id=1,
+                weeks_ahead=1,
+            )
+        assert sorted(self.booked(m_post)) == [("20220307", 1), ("20220310", 1)]

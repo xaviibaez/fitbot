@@ -50,6 +50,8 @@ The value for this parameter can be found by inspecting the requests with the br
 
 `proxy`: Optional. If you want to use a proxy, you can set it with the format `socks5://ip:port`.
 
+`weeks-ahead`: Optional, `0` by default. Book the week that is this many weeks after the current one, for example `1` to book next week when running it on a Sunday. Ignored by the [old format](#old-format).
+
 `timezone`: Optional, `UTC` by default. Timezone used to know which day is today, for example `Europe/Madrid`. Set it to your gym's timezone, otherwise a run close to midnight can take the previous or next day (and week) as today.
 
 ## Old format
@@ -74,6 +76,7 @@ You can use env files for configuration and credentials instead of passing them 
 
 1. **Copy the example files:**
    ```bash
+   cd server
    cp .env.example .env
    cp .env.secrets.example .env.secrets
    ```
@@ -88,6 +91,24 @@ You can use env files for configuration and credentials instead of passing them 
    ```
 
 > **Security Note:** `.env.secrets` is gitignored to prevent accidentally committing credentials. Never commit this file.
+
+## Web client
+
+The repo has two folders: `server` (the bot and its docker image) and `client` (a local web page to pick the classes).
+
+The web page logs in to aimharder, shows the classes of the current week and books the ones you select by running the `xaviibaez/fitbot` container.
+
+1. Build the image: `docker build -t xaviibaez/fitbot server`
+2. Install the server dependencies once: `cd server && uv sync`
+3. Run the page with the server's virtualenv: `server/.venv/Scripts/python client/app.py` (on Linux/macOS `server/.venv/bin/python client/app.py`)
+4. It opens http://127.0.0.1:8000. The login form is prefilled from `server/.env` and `server/.env.secrets` if they exist. The box id is not asked: it is read from `box-id` in `server/.env`.
+5. After logging in you get a weekly calendar: click the classes to book and press **Reservar**. Classes already booked in aimharder show in green, and the page reloads them when you come back to the tab, so bookings made or cancelled in the aimharder app show up.
+
+Your password is only kept in memory while the page server runs, and it is passed to docker as an environment variable, never as a command argument.
+
+### Cancel a booking
+
+Click a booked (green) class to mark it to cancel (it turns red) and press **Aplicar**. Cancelling is done straight away from the page, without the container. Cancelling close to the class can cost you the credit, depending on your box rules.
 
 ## 🚨 Proxy note 🚨
 It appears that AimHarder has started blocking connections by returning a 403 error based on the IP address location. If you are running this script from outside Spain, you may encounter these errors, which is why the proxy argument has been added.

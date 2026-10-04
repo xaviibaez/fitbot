@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FitBot</title>
+<link rel="stylesheet" href="/styles.css">
+<style>
+  main { max-width: 380px; padding-top: 12vh; }
+  form { display: grid; gap: 12px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>FitBot</h1>
+  <form id="login" class="card">
+    <label>Email <input name="email" type="email" required autocomplete="username"></label>
+    <label>Contraseña <input name="password" type="password" required autocomplete="current-password"></label>
+    <label>Box (subdominio) <input name="box_name" required></label>
+    <button>Entrar</button>
+    <p id="msg" class="muted" hidden></p>
+  </form>
+</main>
+<script>
+const form = document.getElementById("login");
+const msg = document.getElementById("msg");
+
+function show(text, isError) {
+  msg.textContent = text;
+  msg.className = isError ? "error" : "muted";
+  msg.hidden = !text;
+}
+
+fetch("/api/defaults").then((r) => r.json()).then((env) => {
+  form.email.value = env.email;
+  form.box_name.value = env["box-name"];
+});
+
+form.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const button = form.querySelector("button");
+  button.disabled = true;
+  show("Entrando…");
+  const response = await fetch("/api/login", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(Object.fromEntries(new FormData(form))),
+  });
+  if (response.ok) return location.assign("/reservas");
+  show(`No se pudo entrar: ${(await response.json()).error}`, true);
+  button.disabled = false;
+});
+</script>
+</body>
+</html>

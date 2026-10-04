@@ -4,6 +4,7 @@ MESSAGE_BOOKING_FAILED_NO_CREDIT = "No credit available"
 MESSAGE_BOOKING_FAILED_UNKNOWN = "Unknown error"
 MESSAGE_ALREADY_BOOKED = "Class already booked. Nothing to do"
 MESSAGE_BOX_IS_CLOSED = "Box is closed"
+MESSAGE_CANCEL_FAILED = "Could not cancel the booking"
 MESSAGE_TOO_SOON_TO_BOOK = "Too soon to book the class"
 
 
@@ -36,4 +37,8 @@ class AlreadyBooked(Exception):
 
 
 class InvalidBookingGoals(Exception):
+    pass
+
+
+class CancelFailed(Exception):
     pass

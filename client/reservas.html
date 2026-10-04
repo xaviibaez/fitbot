@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FitBot · Reservas</title>
+<link rel="stylesheet" href="/styles.css">
+<style>
+  .bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;
+         margin-bottom: 12px; }
+  .bar h1 { margin: 0; }
+  .weeks { display: flex; gap: 6px; }
+  .weeks button.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  .scroll { overflow-x: auto; padding-bottom: 4px; }
+  .calendar { display: grid; grid-template-columns: repeat(7, minmax(150px, 1fr)); gap: 8px; }
+  .day { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 8px;
+         display: flex; flex-direction: column; gap: 6px; min-height: 120px; }
+  .day.today { border-color: var(--accent); }
+  .day.past { opacity: .55; }
+  .day header { padding: 2px 4px 6px; border-bottom: 1px solid var(--line); }
+  .day header strong { display: block; }
+  /* --hue comes from the class name, so every class type keeps its own colour */
+  .slot { all: unset; box-sizing: border-box; display: grid; gap: 1px; padding: 7px 9px; border-radius: 7px;
+          border: 2px solid transparent; border-left: 6px solid hsl(var(--hue) 45% 48%);
+          background: hsl(var(--hue) 45% 88%); color: #1d2330; cursor: pointer; font-size: 13px; }
+  @media (prefers-color-scheme: dark) {
+    .slot { background: hsl(var(--hue) 28% 26%); border-left-color: hsl(var(--hue) 50% 58%); color: #eef0f3; }
+  }
+  .slot:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .slot .time { font-weight: 600; }
+  .slot .places { font-size: 12px; opacity: .75; }
+  .slot.selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+  .slot.selected .time::after { content: "  ✔"; color: var(--accent); }
+  /* booked: thick green frame, glow and a solid "RESERVADA" badge */
+  .slot.booked { position: relative; border: 3px solid var(--ok); border-left-width: 6px;
+                 box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 35%, transparent); }
+  .slot.booked .places { justify-self: start; margin-top: 3px; padding: 2px 8px; border-radius: 999px;
+                         background: var(--ok); color: #fff; font-size: 11px; font-weight: 800;
+                         letter-spacing: .04em; opacity: 1; }
+  .slot.booked::after { content: "✔"; position: absolute; top: -9px; right: -9px; width: 22px; height: 22px;
+                        border-radius: 50%; background: var(--ok); color: #fff; font-size: 13px;
+                        font-weight: 800; display: grid; place-items: center; }
+  /* booked and marked to cancel: same badges in red, name crossed out */
+  .slot.booked.cancel { border-color: var(--err);
+                        box-shadow: 0 0 0 3px color-mix(in srgb, var(--err) 35%, transparent); }
+  .slot.booked.cancel .places, .slot.booked.cancel::after { background: var(--err); }
+  .slot.booked.cancel::after { content: "✕"; }
+  .slot.booked.cancel .name { text-decoration: line-through; }
+  .slot:disabled { opacity: .5; cursor: not-allowed; }
+</style>
+</head>
+<body>
+<main>
+  <div class="bar">
+    <h1>Reservas</h1>
+    <div class="weeks">
+      <button class="ghost" data-weeks="0">Esta semana</button>
+      <button class="ghost" data-weeks="1">Semana que viene</button>
+    </div>
+    <button id="book">Reservar (0)</button>
+  </div>
+  <p id="title" class="muted">Cargando…</p>
+  <div class="scroll"><div id="calendar" class="calendar"></div></div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const pending = new Set();  // keys of classes picked to book
+const pendingCancel = new Set();  // keys of booked classes picked to cancel
+let shown = null;  // last week from the server
+let booking = false;
+
+const key = (c) => `${c.date} ${c.timeid} ${c.name}`;
+// one colour per class name, spread evenly around the colour wheel so they are as far
+// apart as possible; names are sorted, so the same set of classes keeps the same colours
+function hues(week) {
+  const names = [...new Set(week.flatMap((day) => day.classes.map((c) => c.name)))].sort();
+  return new Map(names.map((name, i) => [name, Math.round(20 + (i * 360) / names.length) % 360]));
+}
+const shortDate = (iso) => iso.slice(8, 10) + "/" + iso.slice(5, 7);
+const weeksFromHash = () => Number(location.hash.slice(1)) || 0;
+
+async function api(path, body) {
+  const response = await fetch(path, {
+    method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body),
+  });
+  if (response.status === 401) return location.assign("/");  // backend restarted: log in again
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error);
+  return data;
+}
+
+async function load() {
+  try {
+    render(await api("/api/week", {weeks_ahead: weeksFromHash()}));
+  } catch (error) {
+    status(error.message, true);
+  }
+}
+
+// the line under the bar: "Cargando…", progress and errors only
+function status(text, isError) {
+  $("title").className = isError ? "error" : "muted";
+  $("title").textContent = text;
+  $("title").hidden = false;
+}
+
+function render(data) {
+  if (!data) return;
+  shown = data;
+  for (const button of document.querySelectorAll(".weeks button")) {
+    button.classList.toggle("active", Number(button.dataset.weeks) === data.weeks_ahead);
+  }
+  const {week} = data;
+  $("title").hidden = true;  // only used for "Cargando…" and errors
+  const todayIso = new Date().toLocaleDateString("sv-SE", {timeZone: "Europe/Madrid"});
+  const hueOf = hues(week);
+  $("calendar").replaceChildren(...week.map((day) => {
+    const column = document.createElement("section");
+    column.className = "day" + (day.past ? " past" : "") + (day.date === todayIso ? " today" : "");
+    const note = day.past ? "Pasado" : day.opens ? `Se abre el ${shortDate(day.opens)}`
+      : `${day.classes.length} clases`;
+    column.innerHTML = '<header><strong></strong><span class="muted"></span></header>';
+    column.querySelector("strong").textContent = day.label;
+    column.querySelector(".muted").textContent = note;
+    for (const c of [...day.classes].sort((a, b) => a.timeid.localeCompare(b.timeid))) {
+      const _class = {date: day.date, timeid: c.timeid, name: c.name, booking_id: c.booking_id};
+      const slot = document.createElement("button");
+      slot.className = "slot";
+      slot.style.setProperty("--hue", hueOf.get(c.name));
+      slot.disabled = day.past || !c.enabled || Boolean(day.opens);
+      // drop picks that no longer apply, e.g. booked or cancelled from the app meanwhile
+      if (slot.disabled || c.booked) pending.delete(key(_class));
+      if (slot.disabled || !c.booked) pendingCancel.delete(key(_class));
+      slot.classList.toggle("booked", c.booked);
+      slot.classList.toggle("selected", pending.has(key(_class)));
+      slot.classList.toggle("cancel", pendingCancel.has(key(_class)));
+      slot.innerHTML = '<span class="time"></span><span class="name"></span><span class="places"></span>';
+      slot.querySelector(".time").textContent = c.time;
+      slot.querySelector(".name").textContent = c.name;
+      slot.querySelector(".places").textContent = placesText(slot, c);
+      slot.dataset.class = JSON.stringify(_class);
+      column.append(slot);
+    }
+    return column;
+  }));
+  updateCount();
+}
+
+function placesText(slot, c) {
+  if (!c.booked) return `Plazas ${c.places}`;
+  return slot.classList.contains("cancel") ? "SE CANCELARÁ" : "RESERVADA";
+}
+
+function updateCount() {
+  const parts = [pending.size && `reservar ${pending.size}`, pendingCancel.size && `cancelar ${pendingCancel.size}`];
+  $("book").textContent = pendingCancel.size ? `Aplicar (${parts.filter(Boolean).join(" · ")})`
+    : `Reservar (${pending.size})`;
+}
+
+$("calendar").addEventListener("click", (event) => {
+  const slot = event.target.closest(".slot");
+  if (!slot || slot.disabled) return;
+  const k = key(JSON.parse(slot.dataset.class));
+  const picks = slot.classList.contains("booked") ? pendingCancel : pending;
+  if (picks.has(k)) picks.delete(k);
+  else picks.add(k);
+  slot.classList.toggle(picks === pending ? "selected" : "cancel", picks.has(k));
+  if (picks === pendingCancel) slot.querySelector(".places").textContent = placesText(slot, {booked: true});
+  updateCount();
+});
+
+document.querySelector(".weeks").addEventListener("click", (event) => {
+  const weeks = event.target.dataset.weeks;
+  if (weeks === undefined) return;
+  pending.clear();  // one run books one week
+  pendingCancel.clear();
+  location.hash = weeks;
+});
+window.addEventListener("hashchange", load);
+
+// coming back from the aimharder app: reload so bookings made or cancelled there show up
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && !booking) load();
+});
+
+const MESSAGES = {
+  "class booked successfully": "Reservada",
+  "Class already booked. Nothing to do": "Ya estaba reservada",
+  "Too soon to book the class": "Todavía no se puede reservar (demasiado pronto)",
+  "No credit available": "Sin créditos disponibles",
+  "Could not cancel the booking": "No se pudo cancelar",
+};
+
+$("book").addEventListener("click", async () => {
+  const all = shown.week.flatMap((day) => day.classes.map((c) =>
+    ({date: day.date, timeid: c.timeid, name: c.name, booking_id: c.booking_id})));
+  const book = all.filter((c) => pending.has(key(c)));
+  const cancel = all.filter((c) => pendingCancel.has(key(c)));
+  if (!book.length && !cancel.length) return;
+  booking = true;
+  $("book").disabled = true;
+  status(book.length ? "Aplicando cambios… puede tardar un minuto" : "Cancelando…");
+  try {
+    const result = await api("/api/apply", {book, cancel});
+    pending.clear();
+    pendingCancel.clear();
+    render(result);  // the calendar shows what got booked or cancelled
+    const failed = result.results.filter((r) => !r.ok).map((r) => {
+      const day = result.week.find((d) => d.date === r.date);
+      return `✘ ${r.action === "cancel" ? "Cancelar" : "Reservar"} ${day ? day.label : r.date} ` +
+        `${r.timeid.slice(0, 2)}:${r.timeid.slice(2, 4)} ${r.name}: ${MESSAGES[r.message] || r.message}`;
+    });
+    if (failed.length) status(failed.join(" · "), true);
+  } catch (error) {
+    status(error.message, true);
+  }
+  booking = false;
+  $("book").disabled = false;
+});
+
+load();
+</script>
+</body>
+</html>

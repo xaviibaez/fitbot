@@ -70,6 +70,7 @@ def main(
     family_id=None,
     proxy=None,
     timezone="UTC",
+    weeks_ahead=0,
 ):
     today = datetime.now(tz=ZoneInfo(timezone))
     if days_in_advance is not None and _is_old_format(booking_goals):
@@ -87,7 +88,8 @@ def main(
     client = AimHarderClient(
         email=email, password=password, box_id=box_id, box_name=box_name, proxy=proxy
     )
-    for target_day, goals in _goal_days(booking_goals, today):
+    week_day = today + timedelta(weeks=weeks_ahead)  # any day of the week to book
+    for target_day, goals in _goal_days(booking_goals, week_day):
         classes = client.get_classes(target_day, family_id)
         for goal in goals:
             _book_goal(
@@ -195,6 +197,7 @@ if __name__ == "__main__":
     parser.add_argument("--days-in-advance", required=False, type=int, default=None)
     parser.add_argument("--proxy", required=False, type=str, default=None)
     parser.add_argument("--timezone", required=False, type=str, default="UTC")
+    parser.add_argument("--weeks-ahead", required=False, type=int, default=0)
     parser.add_argument(
         "--family-id",
         required=False,

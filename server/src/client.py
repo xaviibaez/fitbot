@@ -6,13 +6,16 @@ from requests import Session
 from constants import (
     LOGIN_ENDPOINT,
     book_endpoint,
+    cancel_endpoint,
     classes_endpoint,
 )
 from exceptions import (
     MESSAGE_BOOKING_FAILED_NO_CREDIT,
     MESSAGE_BOOKING_FAILED_UNKNOWN,
+    MESSAGE_CANCEL_FAILED,
     MESSAGE_TOO_SOON_TO_BOOK,
     BookingFailed,
+    CancelFailed,
     IncorrectCredentials,
     TooManyWrongAttempts,
 )
@@ -84,3 +87,15 @@ class AimHarderClient:
                 # booking went fine
                 return
         raise BookingFailed(MESSAGE_BOOKING_FAILED_UNKNOWN)
+
+    def cancel_booking(self, booking_id: str, family_id: str | None = None):
+        """`booking_id` is the class `idres` from get_classes once it is booked"""
+        response = self.session.post(
+            cancel_endpoint(self.box_name),
+            data={"id": booking_id, "late": 0, "familyId": family_id},
+        )
+        if (
+            response.status_code != HTTPStatus.OK
+            or response.json().get("cancelState") != 1
+        ):
+            raise CancelFailed(MESSAGE_CANCEL_FAILED)

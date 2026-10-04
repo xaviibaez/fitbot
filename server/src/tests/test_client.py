@@ -8,11 +8,14 @@ from requests import Session
 from requests.exceptions import HTTPError
 
 from client import AimHarderClient
+from constants import cancel_endpoint
 from exceptions import (
     MESSAGE_BOOKING_FAILED_NO_CREDIT,
     MESSAGE_BOOKING_FAILED_UNKNOWN,
+    MESSAGE_CANCEL_FAILED,
     MESSAGE_TOO_SOON_TO_BOOK,
     BookingFailed,
+    CancelFailed,
     IncorrectCredentials,
     TooManyWrongAttempts,
 )
@@ -158,3 +161,36 @@ class TestAimHarderClient:
                 client.book_class(
                     datetime.datetime(2022, 3, 2, tzinfo=datetime.UTC), "123"
                 )
+
+    @pytest.mark.parametrize(
+        "response, status_code, expectation",
+        (
+            ({"cancelState": 1}, HTTPStatus.OK, does_not_raise()),
+            (
+                {"cancelState": 0},
+                HTTPStatus.OK,
+                pytest.raises(CancelFailed, match=MESSAGE_CANCEL_FAILED),
+            ),
+            (
+                {},
+                HTTPStatus.INTERNAL_SERVER_ERROR,
+                pytest.raises(CancelFailed, match=MESSAGE_CANCEL_FAILED),
+            ),
+        ),
+    )
+    def test_cancel_booking(self, response, status_code, expectation):
+        # mock login
+        with patch("requests.Session.post") as m_post:
+            m_post.return_value.status_code = HTTPStatus.OK
+            client = AimHarderClient(
+                email="foo", password="bar", box_id=1, box_name="foo"
+            )
+
+        with patch("requests.Session.post") as m_post:
+            m_post.return_value.json.return_value = response
+            m_post.return_value.status_code = status_code
+            with expectation:
+                client.cancel_booking("987")
+        m_post.assert_called_once_with(
+            cancel_endpoint("foo"), data={"id": "987", "late": 0, "familyId": None}
+        )
