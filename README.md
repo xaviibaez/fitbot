@@ -4,14 +4,13 @@ Python script to automate your session bookings in [aimharder.com](http://aimhar
 
 ## Usage
 
-Having docker installed, build the image from this repo and run it:
+Having docker installed you only need to do the following command:
 
 ```bash
-docker build -t fitbot .
-docker run -e email=your.email@mail.com -e password=1234 -e booking-goals='{"monday":[{"time":"1815","name":"Provenza"}]}' -e box-name=lahuellacrossfit -e box-id=3984 fitbot
+docker run -e email=your.email@mail.com -e password=1234 -e booking-goals='{"monday":[{"time":"1815","name":"Provenza"}]}' -e box-name=lahuellacrossfit -e box-id=3984 xaviibaez/fitbot
 ```
 
-> **Note:** the published `pablobuenaposada/fitbot` image still uses the old `booking-goals` format (one class per day, without lists), so build your own image to use the format described here.
+> **Note:** use the `xaviibaez/fitbot` image. The original `pablobuenaposada/fitbot` image still uses the old `booking-goals` format (numeric days, one class per day and `days-in-advance`).
 
 Explanation about the fields:
 
@@ -68,8 +67,7 @@ You can use env files for configuration and credentials instead of passing them 
 
 4. **Run:**
    ```bash
-   docker build -t fitbot .
-   docker run --env-file .env --env-file .env.secrets fitbot
+   docker run --env-file .env --env-file .env.secrets xaviibaez/fitbot
    ```
 
 > **Security Note:** `.env.secrets` is gitignored to prevent accidentally committing credentials. Never commit this file.
